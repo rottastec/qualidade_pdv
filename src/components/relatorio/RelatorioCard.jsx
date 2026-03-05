@@ -77,12 +77,23 @@ export default function RelatorioCard({ relatorio }) {
         </div>
 
         <div className="mt-4 pt-4 border-t border-slate-100">
-          <Link to={createPageUrl(`VisualizarRelatorio?id=${relatorio.id}`)}>
-            <Button variant="outline" className="w-full group-hover:bg-orange-50 group-hover:border-orange-200 group-hover:text-[#ff7800] transition-all">
+          {(
+            relatorio.id &&
+            relatorio.id !== 'null' &&
+            relatorio.id !== 'undefined'
+          ) ? (
+            <Link to={createPageUrl(`VisualizarRelatorio?id=${relatorio.id}`)}>
+              <Button variant="outline" className="w-full group-hover:bg-orange-50 group-hover:border-orange-200 group-hover:text-[#ff7800] transition-all">
+                <Eye className="w-4 h-4 mr-2" />
+                Visualizar
+              </Button>
+            </Link>
+          ) : (
+            <Button variant="outline" disabled className="w-full text-slate-400">
               <Eye className="w-4 h-4 mr-2" />
-              Visualizar
+              Sem ID
             </Button>
-          </Link>
+          )}
         </div>
       </CardContent>
     </Card>

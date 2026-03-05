@@ -3,6 +3,8 @@ import { useQuery } from '@tanstack/react-query';
 import { mockAPI } from '@/lib/mock-data';
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Link } from "react-router-dom";
@@ -151,7 +153,12 @@ const getSetor = (item) => {
 
 export default function VisualizarRelatorio() {
   const urlParams = new URLSearchParams(window.location.search);
-  const relatorioId = urlParams.get('id');
+  // sanitize ID: ignore empty strings or the literal 'null'/'undefined'
+  const rawId = urlParams.get('id');
+  const relatorioId = rawId && rawId !== 'null' && rawId !== 'undefined' ? rawId : null;
+  
+  // Log para debug
+  console.log('🔍 VisualizarRelatorio - debug:', { rawId, relatorioId, urlFull: window.location.search });
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
 
   const exportToExcel = () => {
@@ -199,13 +206,30 @@ export default function VisualizarRelatorio() {
     document.body.removeChild(link);
   };
 
-  const { data: relatorio, isLoading } = useQuery({
+  const { data: relatorio, isLoading, isError, error } = useQuery({
     queryKey: ['relatorio', relatorioId],
     queryFn: async () => {
+      if (!relatorioId) {
+        throw new Error('ID de relatório não fornecido');
+      }
+      // additional sanity check: avoid calling filter with invalid string
+      if (relatorioId === 'null' || relatorioId === 'undefined') {
+        throw new Error('ID de relatório inválido');
+      }
+      console.log('📡 Fetching relatório com id:', relatorioId);
       const results = await mockAPI.relatorios.filter({ id: relatorioId });
-      return results[0];
+      console.log('📡 Resultados da query:', { count: results?.length, ids: results?.map(r => r.id) });
+      const selected = results[0];
+      console.log('📡 Relatório selecionado:', selected?.id, selected?.pdv_nome);
+      return selected;
     },
-    enabled: !!relatorioId
+    enabled: !!relatorioId,
+    onError: (err) => {
+      console.error('❌ Erro carregando relatório:', err);
+    },
+    onSuccess: (data) => {
+      console.log('✅ Sucesso ao carregar relatório:', data?.id);
+    }
   });
 
   if (isLoading) {
@@ -216,6 +240,14 @@ export default function VisualizarRelatorio() {
           <Skeleton className="h-64 w-full rounded-2xl mb-6" />
           <Skeleton className="h-96 w-full rounded-2xl" />
         </div>
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <p className="text-red-600">Erro ao carregar relatório: {error?.message || 'desconhecido'}</p>
       </div>
     );
   }

@@ -28,19 +28,32 @@ async function inspectTables() {
 
     // Verificar RelatorioQualidade
     console.log('\n\n📋 TABELA: RelatorioQualidade');
-    const { data: relData, error: relError } = await supabase.from('RelatorioQualidade').select('*').limit(3);
+    const { data: relData, error: relError } = await supabase.from('RelatorioQualidade').select('*').limit(100);
     if (relError) {
       console.error('Erro:', relError.message);
     } else if (relData && relData.length > 0) {
       console.log('Colunas:', Object.keys(relData[0]).join(', '));
-      console.log('\nPrimeiros 3 registros:');
-      relData.forEach((rel, i) => {
+      console.log(`\nTotal de registros: ${relData.length}`);
+      console.log('\nPrimeiros 5 registros (resumido):');
+      relData.slice(0, 5).forEach((rel, i) => {
         console.log(`\n  Registro ${i + 1}:`);
         console.log(`    - id: ${rel.id}`);
+        console.log(`    - pdv_id: ${rel.pdv_id}`);
         console.log(`    - pdv_nome: ${rel.pdv_nome}`);
         console.log(`    - auditor: ${rel.auditor}`);
         console.log(`    - data_visita: ${rel.data_visita}`);
       });
+      
+      // Procurar especificamente pelo id=10
+      const rel10 = relData.find(r => r.id === 10);
+      if (rel10) {
+        console.log('\n\n🎯 Relatório com id=10 encontrado:');
+        console.log(`    - pdv_nome: ${rel10.pdv_nome}`);
+        console.log(`    - auditor: ${rel10.auditor}`);
+      } else {
+        console.log('\n\n⚠️  Relatório com id=10 NÃO encontrado');
+        console.log('IDs disponíveis:', relData.map(r => r.id).join(', '));
+      }
     }
 
     // Testar query de PDV filtrando por nome

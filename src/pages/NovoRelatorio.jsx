@@ -9,6 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import { createPageUrl } from "@/utils";
@@ -20,7 +21,8 @@ import {
   Calendar,
   User,
   Loader2,
-  Info
+  Info,
+  AlertCircle
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import ItemAvaliacao from "@/components/relatorio/ItemAvaliacao";
@@ -160,10 +162,13 @@ const categoriasDefault = [
 export default function NovoRelatorio() {
   const navigate = useNavigate();
   const urlParams = new URLSearchParams(window.location.search);
-  const pdvNomeFromUrl = urlParams.get('pdv_nome');
+  // now expect `pdv_id` in query string (numeric or string) so reports are linked by primary key
+  const rawPdvId = urlParams.get('pdv_id');
+  const pdvIdFromUrl = rawPdvId != null ? Number(rawPdvId) : null;
+  const pdvNomeFromUrl = urlParams.get('pdv_nome'); // kept for backward compatibility in case older links still use it
 
   const [formData, setFormData] = useState({
-    pdv_id: pdvNomeFromUrl || '',
+    pdv_id: pdvIdFromUrl != null ? pdvIdFromUrl : (pdvNomeFromUrl || ''),
     pdv_nome: pdvNomeFromUrl || '',
     data_visita: format(new Date(), 'yyyy-MM-dd'),
     auditor: '',
@@ -176,6 +181,7 @@ export default function NovoRelatorio() {
   });
 
   const [activeTab, setActiveTab] = useState('info');
+  const [error, setError] = useState(null);
   const { user } = useAuth();
 
   const { data: pdvs = [] } = useQuery({
@@ -190,13 +196,26 @@ export default function NovoRelatorio() {
   }, [user]);
 
   useEffect(() => {
-    if (pdvIdFromUrl && pdvs.length > 0) {
-      const pdv = pdvs.find(p => p.id === pdvIdFromUrl);
+    // if url provided id or name, look up pdv and populate nome field
+    if ((pdvIdFromUrl || pdvNomeFromUrl) && pdvs.length > 0) {
+      let pdv;
+      if (pdvIdFromUrl) {
+        pdv = pdvs.find(p => String(p.id) === String(pdvIdFromUrl));
+      }
+      if (!pdv && pdvNomeFromUrl) {
+        pdv = pdvs.find(p => p.nome === pdvNomeFromUrl);
+      }
       if (pdv) {
-        setFormData(prev => ({ ...prev, pdv_nome: pdv.nome }));
+        setFormData(prev => ({
+          ...prev,
+          pdv_id: pdv.id,
+          pdv_nome: pdv.nome
+        }));
       }
     }
-  }, [pdvIdFromUrl, pdvs]);
+  }, [pdvIdFromUrl, pdvNomeFromUrl, pdvs]);
+
+
 
   useEffect(() => {
     // Initialize items from default categories
@@ -222,7 +241,13 @@ export default function NovoRelatorio() {
   const createMutation = useMutation({
     mutationFn: (data) => mockAPI.relatorios.create(data),
     onSuccess: (result) => {
-      navigate(createPageUrl(`VisualizarRelatorio?id=${result.id}`));
+      setError(null);
+      // Ir para o dashboard após criação do relatório
+      navigate(createPageUrl('Dashboard'));
+    },
+    onError: (err) => {
+      console.error('Erro ao criar relatório:', err);
+      setError(err.message || 'Erro ao criar relatório. Tente novamente.');
     }
   });
 
@@ -238,12 +263,13 @@ export default function NovoRelatorio() {
     return 'reprovado';
   };
 
-  const handlePDVChange = (pdvNome) => {
-    const pdv = pdvs.find(p => p.nome === pdvNome);
+  const handlePDVChange = (selection) => {
+    // selection comes from Select, we store the numeric id here
+    const pdv = pdvs.find(p => String(p.id) === String(selection));
     setFormData(prev => ({
       ...prev,
-      pdv_id: pdvNome,
-      pdv_nome: pdv?.nome || pdvNome
+      pdv_id: pdv?.id || selection,
+      pdv_nome: pdv?.nome || prev.pdv_nome
     }));
   };
 
@@ -257,8 +283,15 @@ export default function NovoRelatorio() {
     const notaGeral = calculateNotaGeral();
     const resultado = calculateResultado(notaGeral);
     
+    // make sure pdv_id is a number when it looks like one
+    const pdvIdValue = formData.pdv_id;
+    const normalizedPdvId = pdvIdValue != null && !isNaN(Number(pdvIdValue))
+      ? Number(pdvIdValue)
+      : pdvIdValue;
+
     createMutation.mutate({
       ...formData,
+      pdv_id: normalizedPdvId,
       status,
       nota_geral: notaGeral,
       resultado
@@ -287,6 +320,15 @@ export default function NovoRelatorio() {
             <p className="text-slate-600">Preencha o formulário de qualidade do PDV</p>
           </div>
         </div>
+
+        {error && (
+          <Alert className="mb-6 border-red-200 bg-red-50">
+            <AlertCircle className="h-4 w-4 text-red-600" />
+            <AlertDescription className="text-red-800">
+              <strong>Erro:</strong> {error}
+            </AlertDescription>
+          </Alert>
+        )}
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="bg-white shadow-sm border">
@@ -325,7 +367,7 @@ export default function NovoRelatorio() {
                       </SelectTrigger>
                       <SelectContent>
                         {pdvs.map(pdv => (
-                          <SelectItem key={pdv.nome} value={pdv.nome}>
+                          <SelectItem key={pdv.id} value={pdv.id}>
                             {pdv.nome} - {pdv.cidade}/{pdv.estado}
                           </SelectItem>
                         ))}

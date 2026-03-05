@@ -11,10 +11,10 @@ export default function PDVCard({ pdv, onEdit }) {
       <CardContent className="p-5">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <Badge 
-              variant="outline" 
-              className={pdv.status === 'ativo' 
-                ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
+            <Badge
+              variant="outline"
+              className={pdv.status === 'ativo'
+                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                 : "bg-slate-100 text-slate-600"
               }
             >
@@ -65,15 +65,15 @@ export default function PDVCard({ pdv, onEdit }) {
         </div>
 
         <div className="mt-4 pt-4 border-t border-slate-100 flex gap-2">
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             size="icon"
             onClick={() => onEdit(pdv)}
             className="border-slate-200 hover:bg-slate-50"
           >
             <Pencil className="w-4 h-4 text-slate-600" />
           </Button>
-          <Link to={createPageUrl(`NovoRelatorio?pdv_nome=${encodeURIComponent(pdv.nome)}`)} className="flex-1">
+          <Link to={createPageUrl(`NovoRelatorio?pdv_id=${pdv.id}&pdv_nome=${encodeURIComponent(pdv.nome)}`)} className="flex-1">
             <Button className="w-full bg-[#ff7800] hover:bg-[#e66a00]">
               Nova Avaliação
             </Button>

@@ -167,6 +167,12 @@ export default function Relatorios() {
   const { data: relatorios = [], isLoading } = useQuery({
     queryKey: ['relatorios'],
     queryFn: () => mockAPI.relatorios.list('-created_date'),
+    onSuccess: (data) => {
+      const missing = data.filter(r => !r.id);
+      if (missing.length > 0) {
+        console.warn('Relatórios sem ID encontrados:', missing);
+      }
+    }
   });
 
   const filteredRelatorios = relatorios.filter(rel => {
@@ -220,6 +226,12 @@ export default function Relatorios() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
+      {/* debug: warn about any relatorios missing an ID */}
+      {relatorios && relatorios.some(r => !r.id) && (
+        <div className="p-4 bg-yellow-100 text-yellow-800">
+          ⚠️ Existem relatórios sem ID no retorno da API (ver console).
+        </div>
+      )}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
@@ -369,12 +381,23 @@ export default function Relatorios() {
                                                       </span>
                                                     </TableCell>
                                                     <TableCell className="text-center">
-                                                      <Link to={createPageUrl(`VisualizarRelatorio?id=${relatorio.id}`)}>
-                                                        <Button variant="ghost" size="sm" className="text-[#ff7800] hover:text-[#e66a00] hover:bg-orange-50">
+                                                      {(
+                                                        relatorio.id &&
+                                                        relatorio.id !== 'null' &&
+                                                        relatorio.id !== 'undefined'
+                                                      ) ? (
+                                                        <Link to={createPageUrl(`VisualizarRelatorio?id=${relatorio.id}`)}>
+                                                          <Button variant="ghost" size="sm" className="text-[#ff7800] hover:text-[#e66a00] hover:bg-orange-50">
+                                                            <Eye className="w-4 h-4 mr-1" />
+                                                            Ver
+                                                          </Button>
+                                                        </Link>
+                                                      ) : (
+                                                        <Button variant="ghost" size="sm" disabled className="text-slate-400">
                                                           <Eye className="w-4 h-4 mr-1" />
-                                                          Ver
+                                                          (sem ID)
                                                         </Button>
-                                                      </Link>
+                                                      )}
                                                     </TableCell>
                                                   </TableRow>
                                                 );

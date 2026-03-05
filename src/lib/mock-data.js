@@ -60,13 +60,17 @@ export const mockAPI = {
       if (error) throw error;
       return result;
     },
-    update: async (nome, data) => {
-      const { data: result, error } = await supabase
-        .from('PDV')
-        .update(data)
-        .eq('nome', nome)
-        .select()
-        .single();
+    update: async (identifier, data) => {
+      // identifier may be PDV name or numeric id; use id if it looks numeric
+      let query = supabase.from('PDV').update(data);
+      const idNum = Number(identifier);
+      if (!isNaN(idNum) && identifier !== '' && identifier !== null) {
+        query = query.eq('id', idNum);
+      } else {
+        query = query.eq('nome', identifier);
+      }
+
+      const { data: result, error } = await query.select().single();
 
       if (error) throw error;
       return result;

@@ -39,7 +39,7 @@ async function testCRUD() {
     // 2. CREATE Relatório
     console.log('\n2️⃣ Tentando CREATE um novo Relatório...');
     const newRelatorio = {
-      pdv_id: createData?.nome,
+      pdv_id: createData?.id || createData?.nome, // prefer numeric id but fall back for old rows
       pdv_nome: createData?.nome,
       data_visita: '2026-03-05',
       auditor: 'Tester',

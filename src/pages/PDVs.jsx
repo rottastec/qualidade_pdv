@@ -51,7 +51,7 @@ export default function PDVs() {
   });
 
   const updateMutation = useMutation({
-    mutationFn: ({ nome, data }) => mockAPI.pdvs.update(nome, data),
+    mutationFn: ({ id, nome, data }) => mockAPI.pdvs.update(id ?? nome, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pdvs'] });
       handleCloseDialog();
@@ -98,7 +98,7 @@ export default function PDVs() {
     };
     
     if (editingPDV) {
-      updateMutation.mutate({ nome: editingPDV.nome, data: dataToSend });
+      updateMutation.mutate({ id: editingPDV.id, nome: editingPDV.nome, data: dataToSend });
     } else {
       createMutation.mutate(dataToSend);
     }

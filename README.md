@@ -101,8 +101,10 @@ Os relatórios podem ser exportados em PDF usando a funcionalidade integrada.
 #### Relatório de Qualidade
 ```javascript
 {
-  id: string,
-  pdv_id: string,
+  // após migração a coluna `id` é numérica (primary key autoincrement)
+  id: number | string,
+  // `pdv_id` referencia PDV.id (número), embora alguns relatórios antigos ainda usem UUIDs
+  pdv_id: number | string,
   pdv_nome: string,
   data_avaliacao: string,
   resultado: 'aprovado' | 'reprovado' | 'pendente',
@@ -120,7 +122,8 @@ Os relatórios podem ser exportados em PDF usando a funcionalidade integrada.
 #### PDV
 ```javascript
 {
-  id: string,
+  // primary key autoincrement numérico (novos registros)
+  id: number | string,
   nome: string,
   endereco: string,
   status: 'ativo' | 'inativo'
