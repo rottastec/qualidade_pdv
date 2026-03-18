@@ -34,6 +34,16 @@
       "type": "string",
       "description": "Telefone de contato"
     },
+    "tipo": {
+      "type": "string",
+      "enum": [
+        "PDV",
+        "DECORADO",
+        "TAPUME"
+      ],
+      "default": "PDV",
+      "description": "Tipo de ponto de venda"
+    },
     "status": {
       "type": "string",
       "enum": [

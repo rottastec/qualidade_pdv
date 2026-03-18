@@ -58,7 +58,7 @@ export default function ItemAvaliacao({ item, index, onUpdate, categoria }) {
           </div>
           <div className="flex items-center gap-3">
             <Label htmlFor={`conforme-${index}`} className="text-sm text-slate-600">
-              {item.conforme ? "Conforme" : "Não conforme"}
+              {item.conforme ? "Se aplica" : "Não se aplica"}
             </Label>
             <Switch
               id={`conforme-${index}`}
@@ -69,17 +69,30 @@ export default function ItemAvaliacao({ item, index, onUpdate, categoria }) {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <Label className="text-sm text-slate-600">Nota (0-10)</Label>
-            <Input
-              type="number"
-              min="0"
-              max="10"
-              value={item.nota || ''}
-              onChange={(e) => onUpdate(index, { ...item, nota: parseFloat(e.target.value) || 0 })}
-              className="mt-1"
-            />
-          </div>
+          {item.conforme ? (
+            <div>
+              <Label className="text-sm text-slate-600">Nota (0-5)</Label>
+              <Input
+                type="number"
+                min="0"
+                max="5"
+                step="0.1"
+                value={Math.min(5, Math.max(0, item.nota || 0))}
+                onChange={(e) => {
+                  const raw = parseFloat(e.target.value);
+                  const clamped = Number.isNaN(raw) ? 0 : Math.min(5, Math.max(0, raw));
+                  onUpdate(index, { ...item, nota: clamped });
+                }}
+                className="mt-1"
+              />
+            </div>
+          ) : (
+            <div>
+              <Label className="text-sm text-slate-600">Nota (0-5)</Label>
+              <div className="mt-1 text-slate-500">Não se aplica</div>
+            </div>
+          )}
+
           <div>
             <Label className="text-sm text-slate-600">Observação</Label>
             <Textarea

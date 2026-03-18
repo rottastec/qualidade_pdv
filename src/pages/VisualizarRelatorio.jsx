@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useToast } from "@/components/ui/use-toast";
 import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Link } from "react-router-dom";
@@ -18,7 +19,8 @@ import {
   XCircle,
   AlertCircle,
   Image as ImageIcon,
-  FileSpreadsheet
+  FileSpreadsheet,
+  Download
 } from "lucide-react";
 import PDFGenerator from "@/components/relatorio/PDFGenerator";
 import { cn } from "@/lib/utils";
@@ -152,6 +154,7 @@ const getSetor = (item) => {
 };
 
 export default function VisualizarRelatorio() {
+  const { toast } = useToast();
   const urlParams = new URLSearchParams(window.location.search);
   // sanitize ID: ignore empty strings or the literal 'null'/'undefined'
   const rawId = urlParams.get('id');
@@ -164,14 +167,14 @@ export default function VisualizarRelatorio() {
   const exportToExcel = () => {
     if (!relatorio) return;
     
-    const headers = ['Categoria', 'Item', 'Setor', 'Nota', 'Conforme', 'Observação'];
+    const headers = ['Categoria', 'Item', 'Setor', 'Nota', 'Se aplica', 'Observação'];
     
     const rows = (relatorio.itens_avaliacao || []).map(item => [
       item.categoria || '',
       item.item || '',
       getSetor(item) || '',
       item.nota?.toString() || '0',
-      item.conforme ? 'Sim' : 'Não',
+      item.conforme ? 'Sim' : 'Não se aplica',
       item.observacao || ''
     ]);
 
@@ -204,6 +207,65 @@ export default function VisualizarRelatorio() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const downloadAllImages = async () => {
+    if (!relatorio) return;
+
+    const images = (relatorio.itens_avaliacao || [])
+      .flatMap((item, idx) =>
+        (item.imagens || []).map((img, imgIdx) => ({
+          src: img,
+          name: `${relatorio.pdv_nome || 'relatorio'}_${idx + 1}_${imgIdx + 1}.png`
+        }))
+      );
+
+    if (images.length === 0) {
+      toast({
+        title: 'Nenhuma imagem',
+        description: 'Este relatório não possui imagens anexadas.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    const downloadBlob = (blob, filename) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    };
+
+    for (const { src, name } of images) {
+      try {
+        if (src.startsWith('data:')) {
+          // data URL
+          const [meta, base64] = src.split(',');
+          const contentType = meta.split(':')[1].split(';')[0];
+          const binary = atob(base64);
+          const array = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) array[i] = binary.charCodeAt(i);
+          downloadBlob(new Blob([array], { type: contentType }), name);
+        } else {
+          const res = await fetch(src);
+          if (!res.ok) throw new Error(`Falha ao baixar imagem: ${res.status}`);
+          const blob = await res.blob();
+          downloadBlob(blob, name);
+        }
+      } catch (err) {
+        console.error('Erro ao baixar imagem:', err);
+        toast({
+          title: 'Erro ao baixar imagens',
+          description: err.message || 'Verifique a URL das imagens.',
+          variant: 'destructive'
+        });
+        break;
+      }
+    }
   };
 
   const { data: relatorio, isLoading, isError, error } = useQuery({
@@ -280,15 +342,20 @@ export default function VisualizarRelatorio() {
     return acc;
   }, {});
 
-  // Calcular notas por setor
+  // Calcular notas por setor (ignorar itens marcados como "Não se aplica")
   const notasPorSetor = (relatorio.itens_avaliacao || []).reduce((acc, item) => {
     const setor = getSetor(item) || 'Outros';
     if (!acc[setor]) {
-      acc[setor] = { total: 0, count: 0, conformes: 0 };
+      acc[setor] = { totalNota: 0, aplicaveis: 0, totalItens: 0 };
     }
-    acc[setor].total += (item.nota || 0);
-    acc[setor].count += 1;
-    if (item.conforme) acc[setor].conformes += 1;
+
+    acc[setor].totalItens += 1;
+
+    if (item.conforme) {
+      acc[setor].aplicaveis += 1;
+      acc[setor].totalNota += (item.nota || 0);
+    }
+
     return acc;
   }, {});
 
@@ -324,6 +391,14 @@ export default function VisualizarRelatorio() {
                           >
                             <FileSpreadsheet className="w-4 h-4 mr-2" />
                             Excel
+                          </Button>
+                          <Button
+                            variant="outline"
+                            onClick={downloadAllImages}
+                            className="border-slate-300 text-slate-700 hover:bg-slate-50"
+                          >
+                            <Download className="w-4 h-4 mr-2" />
+                            Baixar imagens
                           </Button>
                           <PDFGenerator 
                             relatorio={relatorio} 
@@ -397,8 +472,8 @@ export default function VisualizarRelatorio() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {setoresOrdenados.map(setor => {
                   const dados = notasPorSetor[setor];
-                  const media = dados.count > 0 ? (dados.total / dados.count) : 0;
-                  const percentualConforme = dados.count > 0 ? (dados.conformes / dados.count * 100) : 0;
+                  const media = dados.aplicaveis > 0 ? (dados.totalNota / dados.aplicaveis) : 0;
+                  const percentualAplicacao = dados.totalItens > 0 ? (dados.aplicaveis / dados.totalItens * 100) : 0;
                   const config = setorConfig[setor];
                   
                   return (
@@ -406,7 +481,7 @@ export default function VisualizarRelatorio() {
                       <div className="flex items-center justify-between mb-3">
                         <span className={cn("font-semibold text-sm", config.text)}>{setor}</span>
                         <span className={cn("text-xs px-2 py-1 rounded-full", config.bgLight, config.text)}>
-                          {dados.count} itens
+                          {dados.aplicaveis} de {dados.totalItens} itens aplicáveis
                         </span>
                       </div>
                       <div className="flex items-end gap-1 mb-2">
@@ -420,7 +495,7 @@ export default function VisualizarRelatorio() {
                         />
                       </div>
                       <p className="text-xs text-slate-500">
-                        {percentualConforme.toFixed(0)}% conformidade ({dados.conformes}/{dados.count})
+                        {percentualAplicacao.toFixed(0)}% aplicável ({dados.aplicaveis}/{dados.totalItens})
                       </p>
                     </div>
                   );
@@ -464,10 +539,10 @@ export default function VisualizarRelatorio() {
                                   "text-xs",
                                   item.conforme 
                                     ? "bg-emerald-50 text-emerald-700 border-emerald-200" 
-                                    : "bg-red-50 text-red-700 border-red-200"
+                                    : "bg-slate-100 text-slate-600 border-slate-200"
                                 )}
                               >
-                                {item.conforme ? 'Conforme' : 'Não conforme'}
+                                {item.conforme ? 'Se aplica' : 'Não se aplica'}
                               </Badge>
                             </div>
                         {item.observacao && (

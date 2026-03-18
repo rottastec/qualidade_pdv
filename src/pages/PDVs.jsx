@@ -8,6 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useToast } from "@/components/ui/use-toast";
 import { Plus, Search, Store, MapPin } from "lucide-react";
 import PDVCard from "@/components/pdv/PDVCard";
 
@@ -26,6 +27,7 @@ const emptyForm = {
   responsavel_mkt: '',
   responsavel_comercial: '',
   telefone: '',
+  tipo: 'PDV',
   status: 'ativo'
 };
 
@@ -36,6 +38,7 @@ export default function PDVs() {
   const [formData, setFormData] = useState(emptyForm);
 
   const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const { data: pdvs = [], isLoading } = useQuery({
     queryKey: ['pdvs'],
@@ -47,7 +50,16 @@ export default function PDVs() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pdvs'] });
       handleCloseDialog();
-    }
+      toast({ title: 'PDV criado', description: 'Cadastro realizado com sucesso' });
+    },
+    onError: (error) => {
+      console.error('Erro ao criar PDV:', error);
+      toast({
+        title: 'Erro ao criar PDV',
+        description: error?.message || JSON.stringify(error) || 'Ocorreu um erro ao salvar o PDV.',
+        variant: 'destructive',
+      });
+    },
   });
 
   const updateMutation = useMutation({
@@ -55,7 +67,16 @@ export default function PDVs() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['pdvs'] });
       handleCloseDialog();
-    }
+      toast({ title: 'PDV atualizado', description: 'Alterações salvas com sucesso' });
+    },
+    onError: (error) => {
+      console.error('Erro ao atualizar PDV:', error);
+      toast({
+        title: 'Erro ao atualizar PDV',
+        description: error?.message || JSON.stringify(error) || 'Ocorreu um erro ao salvar as alterações.',
+        variant: 'destructive',
+      });
+    },
   });
 
   const handleCloseDialog = () => {
@@ -71,9 +92,10 @@ export default function PDVs() {
       endereco: pdv.endereco || '',
       cidade: pdv.cidade || '',
       estado: pdv.estado || '',
-      responsavel_pdv: pdv.responsavel || '',
-      responsavel_mkt: '',
-      responsavel_comercial: '',
+      tipo: pdv.tipo || 'PDV',
+      responsavel_pdv: pdv.responsavel_pdv || pdv.responsavel || '',
+      responsavel_mkt: pdv.responsavel_mkt || '',
+      responsavel_comercial: pdv.responsavel_comercial || '',
       telefone: pdv.telefone || '',
       status: pdv.status || 'ativo'
     });
@@ -92,7 +114,10 @@ export default function PDVs() {
       endereco: formData.endereco || null,
       cidade: formData.cidade,
       estado: formData.estado,
+      tipo: formData.tipo,
       responsavel: formData.responsavel_pdv,
+      responsavel_mkt: formData.responsavel_mkt || null,
+      responsavel_comercial: formData.responsavel_comercial || null,
       telefone: formData.telefone || null,
       status: formData.status
     };
@@ -146,7 +171,7 @@ export default function PDVs() {
                     placeholder="Rua, número, bairro"
                   />
                 </div>
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                   <div>
                     <Label>Cidade *</Label>
                     <Input
@@ -169,6 +194,22 @@ export default function PDVs() {
                         {estados.map(uf => (
                           <SelectItem key={uf} value={uf}>{uf}</SelectItem>
                         ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label>Tipo de PDV *</Label>
+                    <Select
+                      value={formData.tipo}
+                      onValueChange={(value) => setFormData({...formData, tipo: value})}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="PDV">PDV</SelectItem>
+                        <SelectItem value="DECORADO">DECORADO</SelectItem>
+                        <SelectItem value="TAPUME">TAPUME</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

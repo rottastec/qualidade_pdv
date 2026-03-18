@@ -1,0 +1,9 @@
+{
+  "name": "Qualidade PDV",
+  "short_name": "Qualidade",
+  "start_url": ".",
+  "display": "standalone",
+  "background_color": "#ffffff",
+  "theme_color": "#ff7800",
+  "description": "Gestão de Qualidade PDV"
+}

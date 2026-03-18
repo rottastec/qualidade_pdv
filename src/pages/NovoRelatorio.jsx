@@ -252,14 +252,15 @@ export default function NovoRelatorio() {
   });
 
   const calculateNotaGeral = () => {
-    if (formData.itens_avaliacao.length === 0) return 0;
-    const soma = formData.itens_avaliacao.reduce((acc, item) => acc + (item.nota || 0), 0);
-    return (soma / formData.itens_avaliacao.length) * 10;
+    const aplicaveis = formData.itens_avaliacao.filter(item => item.conforme);
+    if (aplicaveis.length === 0) return 0;
+    const soma = aplicaveis.reduce((acc, item) => acc + (item.nota || 0), 0);
+    return soma / aplicaveis.length;
   };
 
   const calculateResultado = (nota) => {
-    if (nota >= 70) return 'aprovado';
-    if (nota >= 50) return 'pendente';
+    if (nota >= 4) return 'aprovado';
+    if (nota >= 2) return 'pendente';
     return 'reprovado';
   };
 
@@ -422,25 +423,17 @@ export default function NovoRelatorio() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
                     <div className="bg-red-100 border-l-4 border-red-600 p-3 rounded-r-lg">
-                      <p className="text-xs font-semibold text-red-800 mb-1">0-3</p>
+                      <p className="text-xs font-semibold text-red-800 mb-1">0-1</p>
                       <p className="text-xs text-red-700">CORREÇÃO URGENTE</p>
                     </div>
-                    <div className="bg-orange-100 border-l-4 border-orange-600 p-3 rounded-r-lg">
-                      <p className="text-xs font-semibold text-orange-800 mb-1">4-5</p>
-                      <p className="text-xs text-orange-700">CORREÇÃO PRÓXIMAS SEMANAS</p>
-                    </div>
                     <div className="bg-yellow-100 border-l-4 border-yellow-600 p-3 rounded-r-lg">
-                      <p className="text-xs font-semibold text-yellow-800 mb-1">5-7</p>
+                      <p className="text-xs font-semibold text-yellow-800 mb-1">2-3</p>
                       <p className="text-xs text-yellow-700">CUIDADOS PERIÓDICOS</p>
                     </div>
-                    <div className="bg-green-100 border-l-4 border-green-600 p-3 rounded-r-lg">
-                      <p className="text-xs font-semibold text-green-800 mb-1">8-9</p>
-                      <p className="text-xs text-green-700">BOM</p>
-                    </div>
                     <div className="bg-emerald-100 border-l-4 border-emerald-600 p-3 rounded-r-lg">
-                      <p className="text-xs font-semibold text-emerald-800 mb-1">10</p>
+                      <p className="text-xs font-semibold text-emerald-800 mb-1">4-5</p>
                       <p className="text-xs text-emerald-700">EXCELENTE</p>
                     </div>
                   </div>
@@ -487,7 +480,7 @@ export default function NovoRelatorio() {
                 {/* Score Preview */}
                 <div className="bg-gradient-to-br from-[#ff7800] to-[#e66a00] rounded-2xl p-6 text-white text-center">
                   <p className="text-orange-100 mb-2">Nota Geral Calculada</p>
-                  <p className="text-5xl font-bold">{calculateNotaGeral().toFixed(1)}</p>
+                  <p className="text-5xl font-bold">{calculateNotaGeral().toFixed(1)} / 5</p>
                   <p className="text-blue-100 mt-2">
                     Resultado: <span className="font-semibold text-white uppercase">{calculateResultado(calculateNotaGeral())}</span>
                   </p>

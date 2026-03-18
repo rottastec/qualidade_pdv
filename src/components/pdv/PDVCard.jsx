@@ -11,15 +11,31 @@ export default function PDVCard({ pdv, onEdit }) {
       <CardContent className="p-5">
         <div className="flex items-start justify-between mb-4">
           <div>
-            <Badge
-              variant="outline"
-              className={pdv.status === 'ativo'
-                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
-                : "bg-slate-100 text-slate-600"
-              }
-            >
-              {pdv.status === 'ativo' ? 'Ativo' : 'Inativo'}
-            </Badge>
+            <div className="flex flex-wrap gap-2">
+              <Badge
+                variant="outline"
+                className={pdv.status === 'ativo'
+                  ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                  : "bg-slate-100 text-slate-600"
+                }
+              >
+                {pdv.status === 'ativo' ? 'Ativo' : 'Inativo'}
+              </Badge>
+              {pdv.tipo && (
+                <Badge
+                  variant="outline"
+                  className={
+                    pdv.tipo === 'DECORADO'
+                      ? "bg-blue-50 text-blue-700 border-blue-200"
+                      : pdv.tipo === 'TAPUME'
+                      ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                      : "bg-orange-50 text-orange-700 border-orange-200"
+                  }
+                >
+                  {pdv.tipo}
+                </Badge>
+              )}
+            </div>
             <h3 className="font-semibold text-lg text-slate-800 mt-2 group-hover:text-blue-600 transition-colors">
               {pdv.nome}
             </h3>

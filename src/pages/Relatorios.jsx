@@ -163,6 +163,8 @@ export default function Relatorios() {
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('todos');
   const [filterResultado, setFilterResultado] = useState('todos');
+  const [filterStartDate, setFilterStartDate] = useState('');
+  const [filterEndDate, setFilterEndDate] = useState('');
 
   const { data: relatorios = [], isLoading } = useQuery({
     queryKey: ['relatorios'],
@@ -180,8 +182,12 @@ export default function Relatorios() {
                        rel.auditor?.toLowerCase().includes(search.toLowerCase());
     const matchStatus = filterStatus === 'todos' || rel.status === filterStatus;
     const matchResultado = filterResultado === 'todos' || rel.resultado === filterResultado;
-    
-    return matchSearch && matchStatus && matchResultado;
+
+    const visitDate = rel.data_visita ? new Date(rel.data_visita) : null;
+    const matchStartDate = filterStartDate ? (visitDate && visitDate >= new Date(filterStartDate)) : true;
+    const matchEndDate = filterEndDate ? (visitDate && visitDate <= new Date(filterEndDate)) : true;
+
+    return matchSearch && matchStatus && matchResultado && matchStartDate && matchEndDate;
   });
 
   const exportToExcel = () => {
@@ -271,7 +277,7 @@ export default function Relatorios() {
                   className="pl-10 bg-white border-slate-200"
                 />
               </div>
-              <div className="flex gap-3">
+              <div className="flex flex-col sm:flex-row gap-3">
                 <Select value={filterStatus} onValueChange={setFilterStatus}>
                   <SelectTrigger className="w-36 bg-white">
                     <Filter className="w-4 h-4 mr-2 text-slate-400" />
@@ -294,6 +300,22 @@ export default function Relatorios() {
                     <SelectItem value="pendente">Pendente</SelectItem>
                   </SelectContent>
                 </Select>
+                <div className="flex gap-2">
+                  <Input
+                    type="date"
+                    value={filterStartDate}
+                    onChange={(e) => setFilterStartDate(e.target.value)}
+                    className="w-40 bg-white"
+                    placeholder="Início"
+                  />
+                  <Input
+                    type="date"
+                    value={filterEndDate}
+                    onChange={(e) => setFilterEndDate(e.target.value)}
+                    className="w-40 bg-white"
+                    placeholder="Fim"
+                  />
+                </div>
               </div>
             </div>
           </CardContent>
