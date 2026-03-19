@@ -177,6 +177,30 @@ export default function Relatorios() {
     }
   });
 
+  const { data: pdvs = [] } = useQuery({
+    queryKey: ['pdvs'],
+    queryFn: () => mockAPI.pdvs.list(),
+  });
+
+  const getPdvEstado = (relatorio) => {
+    if (!pdvs || pdvs.length === 0) return '-';
+
+    const pdvId = relatorio.pdv_id;
+    const pdvNome = relatorio.pdv_nome;
+
+    let pdv = null;
+
+    if (pdvId != null && pdvId !== '' && pdvId !== 'null' && pdvId !== 'undefined') {
+      pdv = pdvs.find(p => String(p.id) === String(pdvId));
+    }
+
+    if (!pdv && pdvNome) {
+      pdv = pdvs.find(p => String(p.nome).trim() === String(pdvNome).trim());
+    }
+
+    return pdv?.estado || '-';
+  };
+
   const filteredRelatorios = relatorios.filter(rel => {
     const matchSearch = rel.pdv_nome?.toLowerCase().includes(search.toLowerCase()) ||
                        rel.auditor?.toLowerCase().includes(search.toLowerCase());
@@ -192,12 +216,13 @@ export default function Relatorios() {
 
   const exportToExcel = () => {
     // Preparar dados para exportação
-    const headers = ['PDV', 'Data da Visita', 'Auditor', 'Status', 'Resultado', 'Nota Geral', 'PDV', 'MKT', 'Comercial'];
+    const headers = ['PDV', 'Estado', 'Data da Visita', 'Auditor', 'Status', 'Resultado', 'Nota Geral', 'PDV', 'MKT', 'Comercial'];
     
     const rows = filteredRelatorios.map(rel => {
       const notasPorSetor = calcularNotasPorSetor(rel.itens_avaliacao);
       return [
         rel.pdv_nome || '',
+        getPdvEstado(rel),
         rel.data_visita ? format(new Date(rel.data_visita), 'dd/MM/yyyy') : '',
         rel.auditor || '',
         rel.status === 'finalizado' ? 'Finalizado' : 'Rascunho',
@@ -336,6 +361,7 @@ export default function Relatorios() {
                   <TableHeader>
                                           <TableRow className="bg-slate-50">
                                             <TableHead className="font-semibold text-slate-700">PDV</TableHead>
+                                            <TableHead className="font-semibold text-slate-700">Estado</TableHead>
                                             <TableHead className="font-semibold text-slate-700">Data</TableHead>
                                             <TableHead className="font-semibold text-slate-700">Auditor</TableHead>
                                             <TableHead className="font-semibold text-slate-700">Status</TableHead>
@@ -357,6 +383,9 @@ export default function Relatorios() {
                                                   <TableRow key={relatorio.id} className="hover:bg-slate-50">
                                                     <TableCell className="font-medium text-slate-800">
                                                       {relatorio.pdv_nome || 'PDV não identificado'}
+                                                    </TableCell>
+                                                    <TableCell className="text-slate-600">
+                                                      {getPdvEstado(relatorio)}
                                                     </TableCell>
                                                     <TableCell className="text-slate-600">
                                                       {relatorio.data_visita 

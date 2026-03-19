@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useMemo, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { createPageUrl } from '@/utils';
 import { 
   LayoutDashboard, 
@@ -9,20 +9,34 @@ import {
   X,
   ChevronRight,
   PanelLeftClose,
-  PanelLeft
+  PanelLeft,
+  LogOut
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useAuth } from '@/lib/AuthContext';
 
-const navigation = [
+const navigationBase = [
   { name: 'Dashboard', page: 'Dashboard', icon: LayoutDashboard },
   { name: 'PDVs', page: 'PDVs', icon: Store },
   { name: 'Relatórios', page: 'Relatorios', icon: ClipboardCheck },
 ];
 
+const adminNavItem = { name: 'Usuários', page: 'Users', icon: LayoutDashboard };
+
 export default function Layout({ children, currentPageName }) {
+  const navigate = useNavigate();
+  const { user, role, signOut } = useAuth();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  const navigation = useMemo(() => {
+    const items = [...navigationBase];
+    if (role === 'admin') {
+      items.push(adminNavItem);
+    }
+    return items;
+  }, [role]);
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -72,6 +86,24 @@ export default function Layout({ children, currentPageName }) {
             <span className="font-semibold text-slate-800">Qualidade PDV</span>
           </div>
         )}
+
+        <div className="ml-auto flex items-center gap-3">
+          <span className="text-sm text-slate-600">
+            {user?.email ? user.email : 'Usuário'}
+          </span>
+          <Button
+            variant="outline"
+            size="sm"
+            className="text-slate-700"
+            onClick={async () => {
+              await signOut();
+              navigate('/login');
+            }}
+          >
+            <LogOut className="w-4 h-4 mr-2" />
+            Sair
+          </Button>
+        </div>
       </header>
 
       {/* Mobile Sidebar Overlay */}
