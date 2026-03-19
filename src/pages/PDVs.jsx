@@ -9,6 +9,8 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
+import { useAuth } from '@/lib/AuthContext';
+import { filterPdvsByAccess, normalizeAllowedStates, normalizeRole } from '@/lib/access-control';
 import { Plus, Search, Store, MapPin } from "lucide-react";
 import PDVCard from "@/components/pdv/PDVCard";
 
@@ -39,6 +41,11 @@ export default function PDVs() {
 
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { role, profile } = useAuth();
+  const normalizedRole = normalizeRole(role);
+  const canCreatePDV = normalizedRole === 'admin' || normalizedRole === 'arquitetura';
+  const canEditPDV = normalizedRole === 'admin' || normalizedRole === 'arquitetura';
+  const allowedStates = normalizeAllowedStates(profile?.estados);
 
   const { data: pdvs = [], isLoading } = useQuery({
     queryKey: ['pdvs'],
@@ -86,6 +93,15 @@ export default function PDVs() {
   };
 
   const handleEdit = (pdv) => {
+    if (!canEditPDV) {
+      toast({
+        title: 'Acesso negado',
+        description: 'Apenas admin e arquitetura podem editar PDVs.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setEditingPDV(pdv);
     setFormData({
       nome: pdv.nome || '',
@@ -102,13 +118,25 @@ export default function PDVs() {
     setIsOpen(true);
   };
 
-  const filteredPDVs = pdvs.filter(pdv => 
+  const visiblePdvs = filterPdvsByAccess({ role, allowedStates, pdvs });
+
+  const filteredPDVs = visiblePdvs.filter(pdv => 
     pdv.nome?.toLowerCase().includes(search.toLowerCase()) ||
     pdv.cidade?.toLowerCase().includes(search.toLowerCase())
   );
 
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    if (!editingPDV && !canCreatePDV) {
+      toast({
+        title: 'Acesso negado',
+        description: 'Apenas admin e arquitetura podem cadastrar novos PDVs.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     const dataToSend = {
       nome: formData.nome,
       endereco: formData.endereco || null,
@@ -140,12 +168,14 @@ export default function PDVs() {
           </div>
           
           <Dialog open={isOpen} onOpenChange={(open) => { if (!open) handleCloseDialog(); else setIsOpen(true); }}>
-            <DialogTrigger asChild>
-              <Button className="bg-gradient-to-r from-[#ff7800] to-[#e66a00] hover:from-[#e66a00] hover:to-[#cc5e00] shadow-lg shadow-orange-500/25">
-                <Plus className="w-4 h-4 mr-2" />
-                Novo PDV
-              </Button>
-            </DialogTrigger>
+            {canCreatePDV && (
+              <DialogTrigger asChild>
+                <Button className="bg-gradient-to-r from-[#ff7800] to-[#e66a00] hover:from-[#e66a00] hover:to-[#cc5e00] shadow-lg shadow-orange-500/25">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Novo PDV
+                </Button>
+              </DialogTrigger>
+            )}
             <DialogContent className="sm:max-w-lg">
               <DialogHeader>
                 <DialogTitle className="flex items-center gap-2">
@@ -311,7 +341,7 @@ export default function PDVs() {
         ) : filteredPDVs.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filteredPDVs.map(pdv => (
-              <PDVCard key={pdv.nome} pdv={pdv} onEdit={handleEdit} />
+              <PDVCard key={pdv.nome} pdv={pdv} onEdit={handleEdit} canEdit={canEditPDV} />
             ))}
           </div>
         ) : (
@@ -325,10 +355,12 @@ export default function PDVs() {
                 {search ? 'Tente buscar com outros termos' : 'Cadastre seu primeiro ponto de venda'}
               </p>
               {!search && (
-                <Button onClick={() => setIsOpen(true)} className="bg-[#ff7800] hover:bg-[#e66a00]">
-                  <Plus className="w-4 h-4 mr-2" />
-                  Cadastrar PDV
-                </Button>
+                canCreatePDV ? (
+                  <Button onClick={() => setIsOpen(true)} className="bg-[#ff7800] hover:bg-[#e66a00]">
+                    <Plus className="w-4 h-4 mr-2" />
+                    Cadastrar PDV
+                  </Button>
+                ) : null
               )}
             </CardContent>
           </Card>

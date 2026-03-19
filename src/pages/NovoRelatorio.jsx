@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { mockAPI } from '@/lib/mock-data';
 import { useAuth } from '@/lib/AuthContext';
@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -26,6 +27,12 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import ItemAvaliacao from "@/components/relatorio/ItemAvaliacao";
+import {
+  canFlagCommercialVisibility,
+  filterPdvsByAccess,
+  normalizeAllowedStates,
+  normalizeRole,
+} from '@/lib/access-control';
 
 const categoriasDefault = [
     { nome: 'DOCUMENTAÇÃO GERAL', itens: [
@@ -159,6 +166,46 @@ const categoriasDefault = [
   ]}
 ];
 
+const normalizePdvType = (tipo) => String(tipo || 'PDV').toUpperCase();
+
+const getCategoriasByPdvType = (tipo) => {
+  const normalizedType = normalizePdvType(tipo);
+
+  if (normalizedType === 'DECORADO') {
+    return categoriasDefault.filter((categoria) => categoria.nome === 'DECORADO');
+  }
+
+  // For now, TAPUME follows the default checklist until a dedicated one is defined.
+  return categoriasDefault.filter((categoria) => categoria.nome !== 'DECORADO');
+};
+
+const buildItensFromCategorias = (categorias, previousItens = []) => {
+  const previousMap = new Map(
+    previousItens.map((item) => [`${item.categoria}::${item.item}`, item])
+  );
+
+  const itens = [];
+
+  categorias.forEach((categoria) => {
+    categoria.itens.forEach((itemObj) => {
+      const key = `${categoria.nome}::${itemObj.nome}`;
+      const previousItem = previousMap.get(key);
+
+      itens.push({
+        categoria: categoria.nome,
+        item: itemObj.nome,
+        setor: itemObj.setor,
+        nota: previousItem?.nota ?? 10,
+        conforme: previousItem?.conforme ?? true,
+        observacao: previousItem?.observacao ?? '',
+        imagens: previousItem?.imagens ?? []
+      });
+    });
+  });
+
+  return itens;
+};
+
 export default function NovoRelatorio() {
   const navigate = useNavigate();
   const urlParams = new URLSearchParams(window.location.search);
@@ -177,17 +224,26 @@ export default function NovoRelatorio() {
     nota_geral: 0,
     itens_avaliacao: [],
     observacoes_gerais: '',
-    plano_acao: ''
+    plano_acao: '',
+    visivel_comercial: true,
   });
 
   const [activeTab, setActiveTab] = useState('info');
   const [error, setError] = useState(null);
-  const { user } = useAuth();
+  const { user, role, profile } = useAuth();
+  const normalizedRole = normalizeRole(role);
+  const allowedStates = normalizeAllowedStates(profile?.estados);
+  const canSetCommercialVisibility = canFlagCommercialVisibility(normalizedRole);
 
   const { data: pdvs = [] } = useQuery({
     queryKey: ['pdvs'],
     queryFn: () => mockAPI.pdvs.list(),
   });
+
+  const visiblePdvs = useMemo(
+    () => filterPdvsByAccess({ role: normalizedRole, allowedStates, pdvs }),
+    [normalizedRole, allowedStates, pdvs]
+  );
 
   useEffect(() => {
     if (user && !formData.auditor) {
@@ -197,13 +253,13 @@ export default function NovoRelatorio() {
 
   useEffect(() => {
     // if url provided id or name, look up pdv and populate nome field
-    if ((pdvIdFromUrl || pdvNomeFromUrl) && pdvs.length > 0) {
+    if ((pdvIdFromUrl || pdvNomeFromUrl) && visiblePdvs.length > 0) {
       let pdv;
       if (pdvIdFromUrl) {
-        pdv = pdvs.find(p => String(p.id) === String(pdvIdFromUrl));
+        pdv = visiblePdvs.find(p => String(p.id) === String(pdvIdFromUrl));
       }
       if (!pdv && pdvNomeFromUrl) {
-        pdv = pdvs.find(p => p.nome === pdvNomeFromUrl);
+        pdv = visiblePdvs.find(p => p.nome === pdvNomeFromUrl);
       }
       if (pdv) {
         setFormData(prev => ({
@@ -213,30 +269,51 @@ export default function NovoRelatorio() {
         }));
       }
     }
-  }, [pdvIdFromUrl, pdvNomeFromUrl, pdvs]);
+  }, [pdvIdFromUrl, pdvNomeFromUrl, visiblePdvs]);
+
+  useEffect(() => {
+    if (!formData.pdv_id) return;
+
+    const isVisible = visiblePdvs.some((pdv) => String(pdv.id) === String(formData.pdv_id));
+
+    if (!isVisible) {
+      setFormData((prev) => ({
+        ...prev,
+        pdv_id: '',
+        pdv_nome: '',
+      }));
+    }
+  }, [visiblePdvs, formData.pdv_id]);
+
+  const selectedPdv = visiblePdvs.find((pdv) => String(pdv.id) === String(formData.pdv_id));
+  const selectedPdvType = normalizePdvType(selectedPdv?.tipo);
 
 
 
   useEffect(() => {
-    // Initialize items from default categories
-    if (formData.itens_avaliacao.length === 0) {
-      const itens = [];
-      categoriasDefault.forEach(cat => {
-        cat.itens.forEach(itemObj => {
-          itens.push({
-            categoria: cat.nome,
-            item: itemObj.nome,
-            setor: itemObj.setor,
-            nota: 10,
-            conforme: true,
-            observacao: '',
-            imagens: []
-          });
-        });
-      });
-      setFormData(prev => ({ ...prev, itens_avaliacao: itens }));
-    }
-  }, []);
+    const categorias = getCategoriasByPdvType(selectedPdvType);
+
+    setFormData((prev) => {
+      const nextItens = buildItensFromCategorias(categorias, prev.itens_avaliacao);
+      const sameItems =
+        prev.itens_avaliacao.length === nextItens.length &&
+        prev.itens_avaliacao.every(
+          (item, index) =>
+            item.categoria === nextItens[index]?.categoria &&
+            item.item === nextItens[index]?.item &&
+            item.setor === nextItens[index]?.setor
+        );
+
+      if (sameItems) {
+        return prev;
+      }
+
+      return {
+        ...prev,
+        itens_avaliacao: nextItens
+      };
+    });
+  }, [selectedPdvType]);
 
   const createMutation = useMutation({
     mutationFn: (data) => mockAPI.relatorios.create(data),
@@ -266,7 +343,7 @@ export default function NovoRelatorio() {
 
   const handlePDVChange = (selection) => {
     // selection comes from Select, we store the numeric id here
-    const pdv = pdvs.find(p => String(p.id) === String(selection));
+    const pdv = visiblePdvs.find(p => String(p.id) === String(selection));
     setFormData(prev => ({
       ...prev,
       pdv_id: pdv?.id || selection,
@@ -293,6 +370,7 @@ export default function NovoRelatorio() {
     createMutation.mutate({
       ...formData,
       pdv_id: normalizedPdvId,
+      visivel_comercial: canSetCommercialVisibility ? formData.visivel_comercial : true,
       status,
       nota_geral: notaGeral,
       resultado
@@ -360,20 +438,25 @@ export default function NovoRelatorio() {
                       Ponto de Venda *
                     </Label>
                     <Select
-                      value={formData.pdv_id}
+                      value={formData.pdv_id ? String(formData.pdv_id) : ''}
                       onValueChange={handlePDVChange}
                     >
                       <SelectTrigger className="mt-1">
                         <SelectValue placeholder="Selecione um PDV" />
                       </SelectTrigger>
                       <SelectContent>
-                        {pdvs.map(pdv => (
-                          <SelectItem key={pdv.id} value={pdv.id}>
+                        {visiblePdvs.map(pdv => (
+                          <SelectItem key={pdv.id} value={String(pdv.id)}>
                             {pdv.nome} - {pdv.cidade}/{pdv.estado}
                           </SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
+                    {normalizedRole === 'comercial' && allowedStates.length === 0 && (
+                      <p className="text-xs text-amber-700 mt-2">
+                        Seu usuário comercial não possui estados configurados. Peça ao admin para definir os UFs em Usuários.
+                      </p>
+                    )}
                   </div>
 
                   <div>
@@ -505,6 +588,31 @@ export default function NovoRelatorio() {
                     className="mt-1 min-h-[100px]"
                   />
                 </div>
+
+                {canSetCommercialVisibility && (
+                  <div className="rounded-lg border border-slate-200 p-4">
+                    <div className="flex items-start gap-3">
+                      <Checkbox
+                        id="visivel-comercial"
+                        checked={formData.visivel_comercial}
+                        onCheckedChange={(checked) =>
+                          setFormData((prev) => ({
+                            ...prev,
+                            visivel_comercial: checked === true,
+                          }))
+                        }
+                      />
+                      <div>
+                        <Label htmlFor="visivel-comercial" className="font-medium text-slate-700">
+                          Permitir visualização para o time comercial
+                        </Label>
+                        <p className="text-xs text-slate-500 mt-1">
+                          Quando desmarcado, apenas Arquitetura e Admin poderão visualizar este relatório.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 <div className="flex flex-col sm:flex-row justify-between gap-4 pt-4 border-t">
                   <Button variant="outline" onClick={() => setActiveTab('avaliacao')}>

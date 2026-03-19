@@ -77,6 +77,11 @@
     "plano_acao": {
       "type": "string",
       "description": "Plano de a\u00e7\u00e3o para corre\u00e7\u00f5es"
+    },
+    "visivel_comercial": {
+      "type": "boolean",
+      "default": true,
+      "description": "Define se o relatório pode ser visualizado pelo time comercial"
     }
   },
   "required": [

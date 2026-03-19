@@ -5,7 +5,7 @@ import { MapPin, Phone, FileText, Pencil } from "lucide-react";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
 
-export default function PDVCard({ pdv, onEdit }) {
+export default function PDVCard({ pdv, onEdit, canEdit = true }) {
   return (
     <Card className="group hover:shadow-lg transition-all duration-300 border-slate-200">
       <CardContent className="p-5">
@@ -81,14 +81,16 @@ export default function PDVCard({ pdv, onEdit }) {
         </div>
 
         <div className="mt-4 pt-4 border-t border-slate-100 flex gap-2">
-          <Button
-            variant="outline"
-            size="icon"
-            onClick={() => onEdit(pdv)}
-            className="border-slate-200 hover:bg-slate-50"
-          >
-            <Pencil className="w-4 h-4 text-slate-600" />
-          </Button>
+          {canEdit && (
+            <Button
+              variant="outline"
+              size="icon"
+              onClick={() => onEdit(pdv)}
+              className="border-slate-200 hover:bg-slate-50"
+            >
+              <Pencil className="w-4 h-4 text-slate-600" />
+            </Button>
+          )}
           <Link to={createPageUrl(`NovoRelatorio?pdv_id=${pdv.id}&pdv_nome=${encodeURIComponent(pdv.nome)}`)} className="flex-1">
             <Button className="w-full bg-[#ff7800] hover:bg-[#e66a00]">
               Nova Avaliação

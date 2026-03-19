@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
+import { useMemo } from 'react';
 import { mockAPI } from '@/lib/mock-data';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -17,8 +18,19 @@ import {
   Clock
 } from "lucide-react";
 import RelatorioCard from "@/components/relatorio/RelatorioCard";
+import { useAuth } from '@/lib/AuthContext';
+import {
+  canViewRelatorio,
+  filterPdvsByAccess,
+  normalizeAllowedStates,
+  normalizeRole,
+} from '@/lib/access-control';
 
 export default function Dashboard() {
+  const { role, profile } = useAuth();
+  const normalizedRole = normalizeRole(role);
+  const allowedStates = normalizeAllowedStates(profile?.estados);
+
   const { data: relatorios = [], isLoading: loadingRelatorios } = useQuery({
     queryKey: ['relatorios'],
     queryFn: () => mockAPI.relatorios.list('-created_date', 50),
@@ -29,17 +41,46 @@ export default function Dashboard() {
     queryFn: () => mockAPI.pdvs.list(),
   });
 
+  const visiblePdvs = useMemo(
+    () => filterPdvsByAccess({ role: normalizedRole, allowedStates, pdvs }),
+    [normalizedRole, allowedStates, pdvs]
+  );
+
+  const pdvById = useMemo(
+    () => new Map(visiblePdvs.map((pdv) => [String(pdv.id), pdv])),
+    [visiblePdvs]
+  );
+
+  const pdvByName = useMemo(
+    () => new Map(visiblePdvs.map((pdv) => [String(pdv.nome || '').trim().toLowerCase(), pdv])),
+    [visiblePdvs]
+  );
+
+  const visibleRelatorios = useMemo(
+    () =>
+      relatorios.filter((relatorio) =>
+        canViewRelatorio({
+          role: normalizedRole,
+          allowedStates,
+          relatorio,
+          pdvById,
+          pdvByName,
+        })
+      ),
+    [relatorios, normalizedRole, allowedStates, pdvById, pdvByName]
+  );
+
   const stats = {
-    total: relatorios.length,
-    aprovados: relatorios.filter(r => r.resultado === 'aprovado').length,
-    reprovados: relatorios.filter(r => r.resultado === 'reprovado').length,
-    pendentes: relatorios.filter(r => r.resultado === 'pendente').length,
-    mediaGeral: relatorios.length > 0 
-      ? (relatorios.reduce((acc, r) => acc + (r.nota_geral || 0), 0) / relatorios.length).toFixed(1)
+    total: visibleRelatorios.length,
+    aprovados: visibleRelatorios.filter(r => r.resultado === 'aprovado').length,
+    reprovados: visibleRelatorios.filter(r => r.resultado === 'reprovado').length,
+    pendentes: visibleRelatorios.filter(r => r.resultado === 'pendente').length,
+    mediaGeral: visibleRelatorios.length > 0
+      ? (visibleRelatorios.reduce((acc, r) => acc + (r.nota_geral || 0), 0) / visibleRelatorios.length).toFixed(1)
       : 0
   };
 
-  const recentRelatorios = relatorios.slice(0, 6);
+  const recentRelatorios = visibleRelatorios.slice(0, 6);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
@@ -164,7 +205,7 @@ export default function Dashboard() {
                   {loadingPDVs ? (
                     <Skeleton className="h-6 w-12 mt-1" />
                   ) : (
-                    <p className="text-xl font-bold text-slate-800">{pdvs.length}</p>
+                    <p className="text-xl font-bold text-slate-800">{visiblePdvs.length}</p>
                   )}
                 </div>
               </div>
@@ -183,7 +224,7 @@ export default function Dashboard() {
                     <Skeleton className="h-6 w-12 mt-1" />
                   ) : (
                     <p className="text-xl font-bold text-slate-800">
-                      {relatorios.filter(r => r.nota_geral && r.nota_geral < 60).length}
+                      {visibleRelatorios.filter(r => r.nota_geral && r.nota_geral < 60).length}
                     </p>
                   )}
                 </div>

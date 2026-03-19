@@ -31,11 +31,24 @@ export const mockAPI = {
       return data;
     },
     create: async (data) => {
-      const { data: result, error } = await supabase
+      let response = await supabase
         .from('RelatorioQualidade')
         .insert([data])
         .select()
         .single();
+
+      if (response.error && String(response.error.message || '').toLowerCase().includes('visivel_comercial')) {
+        const fallbackData = { ...data };
+        delete fallbackData.visivel_comercial;
+
+        response = await supabase
+          .from('RelatorioQualidade')
+          .insert([fallbackData])
+          .select()
+          .single();
+      }
+
+      const { data: result, error } = response;
 
       if (error) throw error;
       return result;

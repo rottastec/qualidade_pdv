@@ -8,9 +8,17 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   id          uuid PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
   email       text,
   full_name   text,
-  role        text NOT NULL DEFAULT 'user',
+  role        text NOT NULL DEFAULT 'comercial',
+  estados     text[] NOT NULL DEFAULT '{}'::text[],
   created_at  timestamptz NOT NULL DEFAULT now()
 );
+
+-- Migração para bases já existentes
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS estados text[] NOT NULL DEFAULT '{}'::text[];
+
+ALTER TABLE public.profiles
+  ALTER COLUMN role SET DEFAULT 'comercial';
 
 -- 2. Habilita RLS
 ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
@@ -77,7 +85,7 @@ BEGIN
     NEW.id,
     NEW.email,
     COALESCE(NEW.raw_user_meta_data->>'full_name', ''),
-    'user'
+    'comercial'
   )
   ON CONFLICT (id) DO NOTHING;
 
@@ -98,7 +106,7 @@ SELECT
   u.id,
   u.email,
   COALESCE(u.raw_user_meta_data->>'full_name', ''),
-  'user'
+  'comercial'
 FROM auth.users u
 WHERE NOT EXISTS (
   SELECT 1 FROM public.profiles p WHERE p.id = u.id

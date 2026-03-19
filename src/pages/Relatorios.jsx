@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { mockAPI } from '@/lib/mock-data';
 import { Card, CardContent } from "@/components/ui/card";
@@ -147,6 +147,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
+import { useAuth } from '@/lib/AuthContext';
+import {
+  canViewRelatorio,
+  normalizeAllowedStates,
+  normalizeRole,
+  resolvePdvEstado,
+} from '@/lib/access-control';
 
 const statusConfig = {
   aprovado: { label: "Aprovado", className: "bg-emerald-100 text-emerald-700" },
@@ -160,6 +167,9 @@ const documentoConfig = {
 };
 
 export default function Relatorios() {
+  const { role, profile } = useAuth();
+  const normalizedRole = normalizeRole(role);
+  const allowedStates = normalizeAllowedStates(profile?.estados);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('todos');
   const [filterResultado, setFilterResultado] = useState('todos');
@@ -182,26 +192,35 @@ export default function Relatorios() {
     queryFn: () => mockAPI.pdvs.list(),
   });
 
+  const pdvById = useMemo(
+    () => new Map(pdvs.map((pdv) => [String(pdv.id), pdv])),
+    [pdvs]
+  );
+
+  const pdvByName = useMemo(
+    () => new Map(pdvs.map((pdv) => [String(pdv.nome || '').trim().toLowerCase(), pdv])),
+    [pdvs]
+  );
+
+  const visibleRelatorios = useMemo(
+    () =>
+      relatorios.filter((relatorio) =>
+        canViewRelatorio({
+          role: normalizedRole,
+          allowedStates,
+          relatorio,
+          pdvById,
+          pdvByName,
+        })
+      ),
+    [relatorios, normalizedRole, allowedStates, pdvById, pdvByName]
+  );
+
   const getPdvEstado = (relatorio) => {
-    if (!pdvs || pdvs.length === 0) return '-';
-
-    const pdvId = relatorio.pdv_id;
-    const pdvNome = relatorio.pdv_nome;
-
-    let pdv = null;
-
-    if (pdvId != null && pdvId !== '' && pdvId !== 'null' && pdvId !== 'undefined') {
-      pdv = pdvs.find(p => String(p.id) === String(pdvId));
-    }
-
-    if (!pdv && pdvNome) {
-      pdv = pdvs.find(p => String(p.nome).trim() === String(pdvNome).trim());
-    }
-
-    return pdv?.estado || '-';
+    return resolvePdvEstado(relatorio, pdvById, pdvByName) || '-';
   };
 
-  const filteredRelatorios = relatorios.filter(rel => {
+  const filteredRelatorios = visibleRelatorios.filter(rel => {
     const matchSearch = rel.pdv_nome?.toLowerCase().includes(search.toLowerCase()) ||
                        rel.auditor?.toLowerCase().includes(search.toLowerCase());
     const matchStatus = filterStatus === 'todos' || rel.status === filterStatus;
@@ -258,7 +277,7 @@ export default function Relatorios() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
       {/* debug: warn about any relatorios missing an ID */}
-      {relatorios && relatorios.some(r => !r.id) && (
+      {visibleRelatorios && visibleRelatorios.some(r => !r.id) && (
         <div className="p-4 bg-yellow-100 text-yellow-800">
           ⚠️ Existem relatórios sem ID no retorno da API (ver console).
         </div>
@@ -487,7 +506,7 @@ export default function Relatorios() {
         {/* Summary */}
         {filteredRelatorios.length > 0 && (
           <div className="mt-4 text-sm text-slate-500 text-right">
-            Exibindo {filteredRelatorios.length} de {relatorios.length} relatório(s)
+            Exibindo {filteredRelatorios.length} de {visibleRelatorios.length} relatório(s)
           </div>
         )}
       </div>

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { mockAPI } from '@/lib/mock-data';
 import { Badge } from "@/components/ui/badge";
@@ -10,6 +10,7 @@ import { format } from "date-fns";
 import { ptBR } from "date-fns/locale";
 import { Link } from "react-router-dom";
 import { createPageUrl } from "@/utils";
+import { useAuth } from '@/lib/AuthContext';
 import { 
   ArrowLeft, 
   Calendar, 
@@ -24,6 +25,11 @@ import {
 } from "lucide-react";
 import PDFGenerator from "@/components/relatorio/PDFGenerator";
 import { cn } from "@/lib/utils";
+import {
+  canViewRelatorio,
+  normalizeAllowedStates,
+  normalizeRole,
+} from '@/lib/access-control';
 
 
 const statusConfig = {
@@ -154,6 +160,9 @@ const getSetor = (item) => {
 };
 
 export default function VisualizarRelatorio() {
+  const { role, profile } = useAuth();
+  const normalizedRole = normalizeRole(role);
+  const allowedStates = normalizeAllowedStates(profile?.estados);
   const { toast } = useToast();
   const urlParams = new URLSearchParams(window.location.search);
   // sanitize ID: ignore empty strings or the literal 'null'/'undefined'
@@ -163,6 +172,21 @@ export default function VisualizarRelatorio() {
   // Log para debug
   console.log('🔍 VisualizarRelatorio - debug:', { rawId, relatorioId, urlFull: window.location.search });
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+
+  const { data: pdvs = [] } = useQuery({
+    queryKey: ['pdvs'],
+    queryFn: () => mockAPI.pdvs.list(),
+  });
+
+  const pdvById = useMemo(
+    () => new Map(pdvs.map((pdv) => [String(pdv.id), pdv])),
+    [pdvs]
+  );
+
+  const pdvByName = useMemo(
+    () => new Map(pdvs.map((pdv) => [String(pdv.nome || '').trim().toLowerCase(), pdv])),
+    [pdvs]
+  );
 
   const exportToExcel = () => {
     if (!relatorio) return;
@@ -294,6 +318,17 @@ export default function VisualizarRelatorio() {
     }
   });
 
+  const canViewCurrentRelatorio = useMemo(() => {
+    if (!relatorio) return true;
+    return canViewRelatorio({
+      role: normalizedRole,
+      allowedStates,
+      relatorio,
+      pdvById,
+      pdvByName,
+    });
+  }, [relatorio, normalizedRole, allowedStates, pdvById, pdvByName]);
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
@@ -321,6 +356,25 @@ export default function VisualizarRelatorio() {
           <CardContent className="py-16 text-center">
             <AlertCircle className="w-12 h-12 text-slate-300 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-slate-700 mb-2">Relatório não encontrado</h3>
+            <Link to={createPageUrl('Relatorios')}>
+              <Button className="mt-4 bg-[#ff7800] hover:bg-[#e66a00]">
+                Voltar aos Relatórios
+              </Button>
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!canViewCurrentRelatorio) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50 flex items-center justify-center">
+        <Card className="border-0 shadow-sm max-w-md w-full mx-4">
+          <CardContent className="py-16 text-center">
+            <AlertCircle className="w-12 h-12 text-slate-300 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-slate-700 mb-2">Acesso não permitido</h3>
+            <p className="text-slate-500">Este relatório não está disponível para o seu perfil.</p>
             <Link to={createPageUrl('Relatorios')}>
               <Button className="mt-4 bg-[#ff7800] hover:bg-[#e66a00]">
                 Voltar aos Relatórios

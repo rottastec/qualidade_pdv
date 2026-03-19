@@ -1,42 +1,63 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/api/supabaseClient';
 import { Card, CardContent } from '@/components/ui/card';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { useToast } from '@/components/ui/use-toast';
+import { normalizeAllowedStates, normalizeRole } from '@/lib/access-control';
 
-const ROLE_OPTIONS = ['user', 'admin'];
+const ROLE_OPTIONS = ['comercial', 'arquitetura', 'admin'];
 
 export default function Users() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [stateDraftByUser, setStateDraftByUser] = useState({});
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ['users'],
     queryFn: async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, full_name, email, role, created_at')
+        .select('*')
         .order('created_at', { ascending: false });
       if (error) throw error;
       return data;
     },
   });
 
-  const updateRoleMutation = useMutation({
-    mutationFn: async ({ id, role }) => {
-      const { data, error } = await supabase
+  const updateProfileMutation = useMutation({
+    mutationFn: async ({ id, role, estados }) => {
+      const payload = {
+        role: normalizeRole(role),
+        estados: normalizeAllowedStates(estados),
+      };
+
+      let response = await supabase
         .from('profiles')
-        .update({ role })
+        .update(payload)
         .eq('id', id)
         .select()
         .single();
+
+      if (response.error && String(response.error.message || '').toLowerCase().includes('estados')) {
+        throw new Error('Banco desatualizado: falta a coluna profiles.estados. Execute as migrações SQL de permissões.');
+      }
+
+      const { data, error } = response;
       if (error) throw error;
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       queryClient.invalidateQueries({ queryKey: ['users'] });
+      if (variables?.id) {
+        setStateDraftByUser((prev) => {
+          const next = { ...prev };
+          delete next[variables.id];
+          return next;
+        });
+      }
       toast({ title: 'Perfil atualizado', description: 'Permissões atualizadas com sucesso.' });
     },
     onError: (error) => {
@@ -49,10 +70,24 @@ export default function Users() {
   });
 
   const handleRoleChange = (id, newRole) => {
-    updateRoleMutation.mutate({ id, role: newRole });
+    const currentDraftStates = stateDraftByUser[id];
+    updateProfileMutation.mutate({ id, role: newRole, estados: currentDraftStates });
   };
 
-  const rows = useMemo(() => users || [], [users]);
+  const handleSaveStates = (id, role) => {
+    const draftStates = stateDraftByUser[id] || '';
+    updateProfileMutation.mutate({ id, role, estados: draftStates });
+  };
+
+  const rows = useMemo(
+    () =>
+      (users || []).map((user) => ({
+        ...user,
+        role: normalizeRole(user.role),
+        estados: normalizeAllowedStates(user.estados),
+      })),
+    [users]
+  );
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/30 to-slate-50">
@@ -73,6 +108,7 @@ export default function Users() {
                     <TableHead className="font-semibold text-slate-700">Nome</TableHead>
                     <TableHead className="font-semibold text-slate-700">E-mail</TableHead>
                     <TableHead className="font-semibold text-slate-700">Função</TableHead>
+                    <TableHead className="font-semibold text-slate-700">Estados permitidos</TableHead>
                     <TableHead className="font-semibold text-slate-700">Criado em</TableHead>
                     <TableHead className="font-semibold text-slate-700 text-center">Ações</TableHead>
                   </TableRow>
@@ -83,6 +119,32 @@ export default function Users() {
                       <TableCell className="font-medium text-slate-800">{user.full_name || '-'}</TableCell>
                       <TableCell className="text-slate-600">{user.email}</TableCell>
                       <TableCell className="text-slate-600">{user.role}</TableCell>
+                      <TableCell className="text-slate-600 min-w-[220px]">
+                        {user.role === 'comercial' ? (
+                          <div className="flex items-center gap-2">
+                            <Input
+                              value={stateDraftByUser[user.id] ?? (user.estados || []).join(', ')}
+                              onChange={(e) =>
+                                setStateDraftByUser((prev) => ({
+                                  ...prev,
+                                  [user.id]: e.target.value,
+                                }))
+                              }
+                              placeholder="Ex: PR, SC, SP"
+                            />
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => handleSaveStates(user.id, user.role)}
+                              disabled={updateProfileMutation.isPending}
+                            >
+                              Salvar
+                            </Button>
+                          </div>
+                        ) : (
+                          <span className="text-slate-400">Todos os estados</span>
+                        )}
+                      </TableCell>
                       <TableCell className="text-slate-600">
                         {user.created_at ? new Date(user.created_at).toLocaleString() : '-'}
                       </TableCell>
@@ -94,7 +156,7 @@ export default function Users() {
                               variant={user.role === role ? 'secondary' : 'outline'}
                               size="sm"
                               onClick={() => handleRoleChange(user.id, role)}
-                              disabled={updateRoleMutation.isLoading}
+                              disabled={updateProfileMutation.isPending}
                             >
                               {role}
                             </Button>

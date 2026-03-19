@@ -1,18 +1,21 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/api/supabaseClient';
+import { normalizeAllowedStates, normalizeRole } from '@/lib/access-control';
 
 const AuthContext = createContext(undefined);
 
 const DEFAULT_PROFILE = {
-  role: 'user',
+  role: 'comercial',
   full_name: '',
   email: '',
+  estados: [],
 };
 
 const buildFallbackProfile = (authUser) => ({
-  role: authUser?.app_metadata?.role || authUser?.user_metadata?.role || DEFAULT_PROFILE.role,
+  role: normalizeRole(authUser?.app_metadata?.role || authUser?.user_metadata?.role || DEFAULT_PROFILE.role),
   full_name: authUser?.user_metadata?.full_name || DEFAULT_PROFILE.full_name,
   email: authUser?.email || DEFAULT_PROFILE.email,
+  estados: normalizeAllowedStates(authUser?.user_metadata?.estados),
 });
 
 export const AuthProvider = ({ children }) => {
@@ -29,7 +32,7 @@ export const AuthProvider = ({ children }) => {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, email, full_name, role')
+        .select('*')
         .eq('id', userId)
         .single();
 
@@ -43,7 +46,11 @@ export const AuthProvider = ({ children }) => {
 
       if (data) {
         console.log('[Auth] perfil carregado, role =', data.role);
-        setProfile(data);
+        setProfile({
+          ...data,
+          role: normalizeRole(data.role),
+          estados: normalizeAllowedStates(data.estados),
+        });
       } else {
         console.warn('[Auth] perfil não encontrado, usando fallback, role =', buildFallbackProfile(fallbackUser).role);
         setProfile(buildFallbackProfile(fallbackUser));
@@ -124,6 +131,25 @@ export const AuthProvider = ({ children }) => {
     };
   }, []);
 
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const handleWindowFocus = () => {
+      void loadProfile(user.id, user);
+    };
+
+    window.addEventListener('focus', handleWindowFocus);
+
+    return () => {
+      window.removeEventListener('focus', handleWindowFocus);
+    };
+  }, [user?.id]);
+
+  const refreshProfile = async () => {
+    if (!user?.id) return;
+    await loadProfile(user.id, user);
+  };
+
   const signUp = async ({ email, password, full_name }) => {
     setAuthError(null);
 
@@ -141,12 +167,28 @@ export const AuthProvider = ({ children }) => {
     }
 
     if (data?.user) {
-      await upsertProfile({
-        id: data.user.id,
-        email,
-        full_name,
-        role: 'user',
-      });
+      try {
+        await upsertProfile({
+          id: data.user.id,
+          email,
+          full_name,
+          role: 'comercial',
+          estados: [],
+        });
+      } catch (profileError) {
+        const message = String(profileError?.message || '').toLowerCase();
+        const isRlsBlock =
+          message.includes('row-level security') ||
+          message.includes('permission denied') ||
+          message.includes('violates row-level security policy');
+
+        if (!isRlsBlock) {
+          throw profileError;
+        }
+
+        // Profile creation can be handled by DB trigger on auth.users.
+        console.warn('[Auth] signUp profile upsert blocked by RLS; relying on DB trigger.');
+      }
     }
 
     return data;
@@ -219,23 +261,48 @@ export const AuthProvider = ({ children }) => {
   };
 
   const upsertProfile = async (profileData) => {
-    const { data, error } = await supabase
+    const payload = {
+      ...profileData,
+      role: normalizeRole(profileData.role),
+      estados: normalizeAllowedStates(profileData.estados),
+    };
+
+    let response = await supabase
       .from('profiles')
-      .upsert(profileData, { onConflict: 'id' })
+      .upsert(payload, { onConflict: 'id' })
       .select()
       .single();
+
+    if (response.error && String(response.error.message || '').toLowerCase().includes('estados')) {
+      const fallbackPayload = {
+        ...payload,
+      };
+      delete fallbackPayload.estados;
+
+      response = await supabase
+        .from('profiles')
+        .upsert(fallbackPayload, { onConflict: 'id' })
+        .select()
+        .single();
+    }
+
+    const { data, error } = response;
 
     if (error) {
       console.error('[Auth] upsertProfile error', error);
       throw error;
     }
 
-    setProfile(data);
+    setProfile({
+      ...data,
+      role: normalizeRole(data.role),
+      estados: normalizeAllowedStates(data.estados),
+    });
     return data;
   };
 
   const isAuthenticated = Boolean(user);
-  const role = profile?.role || 'user';
+  const role = normalizeRole(profile?.role);
 
   const value = useMemo(
     () => ({
@@ -253,6 +320,7 @@ export const AuthProvider = ({ children }) => {
       sendPasswordResetEmail,
       updatePassword,
       upsertProfile,
+      refreshProfile,
     }),
     [user, profile, role, session, isAuthenticated, isLoadingAuth, isLoadingProfile, authError]
   );
