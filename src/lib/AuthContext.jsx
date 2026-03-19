@@ -1,4 +1,4 @@
-import React, { createContext, useState, useContext, useEffect, useMemo } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/api/supabaseClient';
 
 const AuthContext = createContext(undefined);
@@ -6,15 +6,55 @@ const AuthContext = createContext(undefined);
 const DEFAULT_PROFILE = {
   role: 'user',
   full_name: '',
-  email: ''
+  email: '',
 };
+
+const buildFallbackProfile = (authUser) => ({
+  role: authUser?.app_metadata?.role || authUser?.user_metadata?.role || DEFAULT_PROFILE.role,
+  full_name: authUser?.user_metadata?.full_name || DEFAULT_PROFILE.full_name,
+  email: authUser?.email || DEFAULT_PROFILE.email,
+});
 
 export const AuthProvider = ({ children }) => {
   const [session, setSession] = useState(null);
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(DEFAULT_PROFILE);
-  const [isLoadingAuth, setIsLoadingAuth] = useState(false);
+  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
   const [authError, setAuthError] = useState(null);
+
+  const loadProfile = async (userId, fallbackUser) => {
+    setIsLoadingProfile(true);
+
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, email, full_name, role')
+        .eq('id', userId)
+        .single();
+
+      console.log('[Auth] loadProfile →', { data, error, userId });
+
+      if (error && error.code !== 'PGRST116') {
+        console.error('[Auth] failed loading profile — código:', error.code, '— mensagem:', error.message);
+        setProfile(buildFallbackProfile(fallbackUser));
+        return;
+      }
+
+      if (data) {
+        console.log('[Auth] perfil carregado, role =', data.role);
+        setProfile(data);
+      } else {
+        console.warn('[Auth] perfil não encontrado, usando fallback, role =', buildFallbackProfile(fallbackUser).role);
+        setProfile(buildFallbackProfile(fallbackUser));
+      }
+    } catch (err) {
+      console.error('[Auth] loadProfile uncaught', err);
+      setProfile(buildFallbackProfile(fallbackUser));
+    } finally {
+      setIsLoadingProfile(false);
+    }
+  };
 
   useEffect(() => {
     let timeoutId;
@@ -37,11 +77,17 @@ export const AuthProvider = ({ children }) => {
           console.error('[Auth] getSession error', error);
         }
 
-        setSession(currentSession);
-        setUser(currentSession?.user ?? null);
+        const currentUser = currentSession?.user ?? null;
 
-        if (currentSession?.user) {
-          await loadProfile(currentSession.user.id);
+        setSession(currentSession);
+        setUser(currentUser);
+        setProfile(buildFallbackProfile(currentUser));
+
+        if (currentUser) {
+          void loadProfile(currentUser.id, currentUser);
+        } else {
+          setProfile(DEFAULT_PROFILE);
+          setIsLoadingProfile(false);
         }
       } catch (err) {
         console.error('[Auth] init error', err);
@@ -53,15 +99,20 @@ export const AuthProvider = ({ children }) => {
 
     init();
 
-    const { data: listener } = supabase.auth.onAuthStateChange(async (event, newSession) => {
+    const { data: listener } = supabase.auth.onAuthStateChange((event, newSession) => {
       clearTimeout(timeoutId);
-      setSession(newSession);
-      setUser(newSession?.user ?? null);
 
-      if (newSession?.user) {
-        await loadProfile(newSession.user.id);
+      const nextUser = newSession?.user ?? null;
+
+      setSession(newSession);
+      setUser(nextUser);
+      setProfile(buildFallbackProfile(nextUser));
+
+      if (nextUser) {
+        void loadProfile(nextUser.id, nextUser);
       } else {
         setProfile(DEFAULT_PROFILE);
+        setIsLoadingProfile(false);
       }
 
       setIsLoadingAuth(false);
@@ -72,27 +123,6 @@ export const AuthProvider = ({ children }) => {
       listener?.subscription?.unsubscribe?.();
     };
   }, []);
-
-  const loadProfile = async (userId) => {
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id, email, full_name, role')
-        .eq('id', userId)
-        .single();
-
-      if (error && error.code !== 'PGRST116') {
-        console.error('[Auth] failed loading profile', error);
-        return;
-      }
-
-      if (data) {
-        setProfile(data);
-      }
-    } catch (err) {
-      console.error('[Auth] loadProfile uncaught', err);
-    }
-  };
 
   const signUp = async ({ email, password, full_name }) => {
     setAuthError(null);
@@ -115,7 +145,7 @@ export const AuthProvider = ({ children }) => {
         id: data.user.id,
         email,
         full_name,
-        role: 'user'
+        role: 'user',
       });
     }
 
@@ -124,11 +154,6 @@ export const AuthProvider = ({ children }) => {
 
   const signIn = async ({ email, password, rememberMe = true }) => {
     setAuthError(null);
-
-    // Supabase persists session by default (local storage). If "remember me" is false,
-    // we can make session non-persistent by setting to "session".
-    const persistence = rememberMe ? 'local' : 'session';
-    await supabase.auth.setPersistence(persistence);
 
     const { data, error } = await supabase.auth.signInWithPassword({
       email,
@@ -139,6 +164,22 @@ export const AuthProvider = ({ children }) => {
       setAuthError(error);
       throw error;
     }
+
+    const nextSession = data?.session ?? null;
+    const nextUser = data?.user ?? nextSession?.user ?? null;
+
+    setSession(nextSession);
+    setUser(nextUser);
+    setProfile(buildFallbackProfile(nextUser));
+
+    if (nextUser) {
+      void loadProfile(nextUser.id, nextUser);
+    } else {
+      setProfile(DEFAULT_PROFILE);
+      setIsLoadingProfile(false);
+    }
+
+    void rememberMe;
 
     return data;
   };
@@ -152,6 +193,7 @@ export const AuthProvider = ({ children }) => {
     setUser(null);
     setProfile(DEFAULT_PROFILE);
     setSession(null);
+    setIsLoadingProfile(false);
   };
 
   const sendPasswordResetEmail = async (email) => {
@@ -185,7 +227,7 @@ export const AuthProvider = ({ children }) => {
 
     if (error) {
       console.error('[Auth] upsertProfile error', error);
-      return null;
+      throw error;
     }
 
     setProfile(data);
@@ -203,6 +245,7 @@ export const AuthProvider = ({ children }) => {
       session,
       isAuthenticated,
       isLoadingAuth,
+      isLoadingProfile,
       authError,
       signIn,
       signUp,
@@ -211,7 +254,7 @@ export const AuthProvider = ({ children }) => {
       updatePassword,
       upsertProfile,
     }),
-    [user, profile, session, isAuthenticated, isLoadingAuth, authError]
+    [user, profile, role, session, isAuthenticated, isLoadingAuth, isLoadingProfile, authError]
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
