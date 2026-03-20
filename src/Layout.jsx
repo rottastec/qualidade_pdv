@@ -10,7 +10,8 @@ import {
   ChevronRight,
   PanelLeftClose,
   PanelLeft,
-  LogOut
+  LogOut,
+  Users
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -22,7 +23,7 @@ const navigationBase = [
   { name: 'Relatórios', page: 'Relatorios', icon: ClipboardCheck },
 ];
 
-const adminNavItem = { name: 'Usuários', page: 'Users', icon: LayoutDashboard };
+const adminNavItem = { name: 'Usuários', page: 'Users', icon: Users };
 
 export default function Layout({ children, currentPageName }) {
   const navigate = useNavigate();
