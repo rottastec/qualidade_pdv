@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { mockAPI } from '@/lib/mock-data';
 import { Card, CardContent } from "@/components/ui/card";
@@ -148,6 +148,7 @@ import {
 } from "@/components/ui/table";
 import { cn } from "@/lib/utils";
 import { useAuth } from '@/lib/AuthContext';
+import { useToast } from '@/components/ui/use-toast';
 import {
   canViewRelatorio,
   normalizeAllowedStates,
@@ -168,6 +169,7 @@ const documentoConfig = {
 
 export default function Relatorios() {
   const { role, profile } = useAuth();
+  const { toast } = useToast();
   const normalizedRole = normalizeRole(role);
   const allowedStates = normalizeAllowedStates(profile?.estados);
   const [search, setSearch] = useState('');
@@ -176,21 +178,29 @@ export default function Relatorios() {
   const [filterStartDate, setFilterStartDate] = useState('');
   const [filterEndDate, setFilterEndDate] = useState('');
 
-  const { data: relatorios = [], isLoading } = useQuery({
+  const { data: relatorios = [], isLoading, error: errorRelatorios } = useQuery({
     queryKey: ['relatorios'],
     queryFn: () => mockAPI.relatorios.list('-created_date'),
-    onSuccess: (data) => {
-      const missing = data.filter(r => !r.id);
-      if (missing.length > 0) {
-        console.warn('Relatórios sem ID encontrados:', missing);
-      }
-    }
+    enabled: !!role,
   });
 
-  const { data: pdvs = [] } = useQuery({
+  const { data: pdvs = [], error: errorPDVs } = useQuery({
     queryKey: ['pdvs'],
     queryFn: () => mockAPI.pdvs.list(),
+    enabled: !!role,
   });
+
+  useEffect(() => {
+    if (errorRelatorios) {
+      toast({ title: 'Erro ao buscar relatórios', description: errorRelatorios?.message || JSON.stringify(errorRelatorios), variant: 'destructive' });
+    }
+  }, [errorRelatorios]);
+
+  useEffect(() => {
+    if (errorPDVs) {
+      toast({ title: 'Erro ao buscar PDVs', description: errorPDVs?.message || JSON.stringify(errorPDVs), variant: 'destructive' });
+    }
+  }, [errorPDVs]);
 
   const pdvById = useMemo(
     () => new Map(pdvs.map((pdv) => [String(pdv.id), pdv])),

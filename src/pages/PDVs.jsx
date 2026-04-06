@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { mockAPI } from '@/lib/mock-data';
 import { Card, CardContent } from "@/components/ui/card";
@@ -47,10 +47,17 @@ export default function PDVs() {
   const canEditPDV = normalizedRole === 'admin' || normalizedRole === 'arquitetura';
   const allowedStates = normalizeAllowedStates(profile?.estados);
 
-  const { data: pdvs = [], isLoading } = useQuery({
+  const { data: pdvs = [], isLoading, error: errorPDVs } = useQuery({
     queryKey: ['pdvs'],
     queryFn: () => mockAPI.pdvs.list(),
+    enabled: !!role,
   });
+
+  useEffect(() => {
+    if (errorPDVs) {
+      toast({ title: 'Erro ao buscar PDVs', description: errorPDVs?.message || JSON.stringify(errorPDVs), variant: 'destructive' });
+    }
+  }, [errorPDVs]);
 
   const createMutation = useMutation({
     mutationFn: (data) => mockAPI.pdvs.create(data),

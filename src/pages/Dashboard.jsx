@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { mockAPI } from '@/lib/mock-data';
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import RelatorioCard from "@/components/relatorio/RelatorioCard";
 import { useAuth } from '@/lib/AuthContext';
+import { useToast } from '@/components/ui/use-toast';
 import {
   canViewRelatorio,
   filterPdvsByAccess,
@@ -27,19 +28,34 @@ import {
 } from '@/lib/access-control';
 
 export default function Dashboard() {
-  const { role, profile } = useAuth();
+  const { role, profile, isAuthenticated } = useAuth();
+  const { toast } = useToast();
   const normalizedRole = normalizeRole(role);
   const allowedStates = normalizeAllowedStates(profile?.estados);
 
-  const { data: relatorios = [], isLoading: loadingRelatorios } = useQuery({
+  const { data: relatorios = [], isLoading: loadingRelatorios, error: errorRelatorios } = useQuery({
     queryKey: ['relatorios'],
     queryFn: () => mockAPI.relatorios.list('-created_date', 50),
+    enabled: isAuthenticated,
   });
 
-  const { data: pdvs = [], isLoading: loadingPDVs } = useQuery({
+  const { data: pdvs = [], isLoading: loadingPDVs, error: errorPDVs } = useQuery({
     queryKey: ['pdvs'],
     queryFn: () => mockAPI.pdvs.list(),
+    enabled: isAuthenticated,
   });
+
+  useEffect(() => {
+    if (errorRelatorios) {
+      toast({ title: 'Erro ao buscar relatórios', description: errorRelatorios?.message || JSON.stringify(errorRelatorios), variant: 'destructive' });
+    }
+  }, [errorRelatorios]);
+
+  useEffect(() => {
+    if (errorPDVs) {
+      toast({ title: 'Erro ao buscar PDVs', description: errorPDVs?.message || JSON.stringify(errorPDVs), variant: 'destructive' });
+    }
+  }, [errorPDVs]);
 
   const visiblePdvs = useMemo(
     () => filterPdvsByAccess({ role: normalizedRole, allowedStates, pdvs }),
