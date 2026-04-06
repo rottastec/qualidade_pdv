@@ -166,6 +166,39 @@ const categoriasDefault = [
   ]}
 ];
 
+const categoriasTapume = [
+  { nome: 'TAPUME', itens: [
+    { nome: 'Tapume com pintura conservada', setor: 'OBRA' },
+    { nome: 'Encontra-se limpo', setor: 'OBRA' },
+    { nome: 'Apresenta ausência de amassados', setor: 'OBRA' },
+    { nome: 'Encontra-se alinhado corretamente', setor: 'OBRA' },
+    { nome: 'Sem frestas visíveis', setor: 'OBRA' },
+    { nome: 'Fixação de forma regular e segura', setor: 'OBRA' },
+    { nome: 'Livre de pichações e vandalismo', setor: 'OBRA' },
+  ]},
+  { nome: 'PAISAGISMO', itens: [
+    { nome: 'Há ausência de mato', setor: 'OBRA' },
+    { nome: 'Plantas estão saudáveis', setor: 'OBRA' },
+    { nome: 'Áreas estão limpas', setor: 'OBRA' },
+    { nome: 'Iluminação funcionando de maneira correta', setor: 'OBRA' },
+    { nome: 'Plantas altas podadas', setor: 'OBRA' },
+  ]},
+  { nome: 'COMUNICAÇÃO VISUAL', itens: [
+    { nome: 'Logos / placas fixadas de maneira adequada', setor: 'MKT' },
+    { nome: 'Logos / placas devidamente limpos', setor: 'MKT' },
+    { nome: 'Comunicação de vendas atualizada', setor: 'MKT' },
+    { nome: 'Iluminação funcionando de maneira correta', setor: 'MKT' },
+    { nome: 'Placas de comunicação visual sem danos', setor: 'MKT' },
+    { nome: 'Placa de evolução de obra, devidamente preenchida', setor: 'MKT' },
+    { nome: 'Placa governo federal conservada', setor: 'MKT' },
+    { nome: 'Placa Cohapar conservada', setor: 'MKT' },
+    { nome: 'Placa responsável técnico conservada', setor: 'MKT' },
+    { nome: 'Placa selo azul + caixa conservada', setor: 'MKT' },
+    { nome: 'Leitura de QR Code funcionando', setor: 'MKT' },
+    { nome: 'Sinalização de acesso restrito adequada', setor: 'OBRA' },
+  ]},
+];
+
 const normalizePdvType = (tipo) => String(tipo || 'PDV').toUpperCase();
 
 const getCategoriasByPdvType = (tipo) => {
@@ -175,7 +208,10 @@ const getCategoriasByPdvType = (tipo) => {
     return categoriasDefault.filter((categoria) => categoria.nome === 'DECORADO');
   }
 
-  // For now, TAPUME follows the default checklist until a dedicated one is defined.
+  if (normalizedType === 'TAPUME') {
+    return categoriasTapume;
+  }
+
   return categoriasDefault.filter((categoria) => categoria.nome !== 'DECORADO');
 };
 
@@ -195,7 +231,7 @@ const buildItensFromCategorias = (categorias, previousItens = []) => {
         categoria: categoria.nome,
         item: itemObj.nome,
         setor: itemObj.setor,
-        nota: previousItem?.nota ?? 10,
+        nota: previousItem?.nota ?? 5,
         conforme: previousItem?.conforme ?? true,
         observacao: previousItem?.observacao ?? '',
         imagens: previousItem?.imagens ?? []
