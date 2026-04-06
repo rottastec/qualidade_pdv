@@ -18,7 +18,7 @@ export function ProtectedRoute({ children, requiredRoles }) {
   }
 
   if (requiredRoles && !requiredRoles.includes(role)) {
-    return <Navigate to="/unauthorized" replace />;
+    return <Navigate to="/Unauthorized" replace />;
   }
 
   return children;

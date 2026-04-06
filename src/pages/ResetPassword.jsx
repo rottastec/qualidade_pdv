@@ -53,7 +53,7 @@ export default function ResetPassword() {
         title: 'Senha atualizada',
         description: 'Agora você pode fazer login com a nova senha.',
       });
-      navigate('/login');
+      navigate('/Login');
     } catch (error) {
       toast({
         title: 'Não foi possível atualizar',
