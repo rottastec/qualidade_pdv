@@ -87,7 +87,7 @@ export default function Login() {
                 </Label>
               </div>
               <Link
-                to="/forgot-password"
+                to="/ForgotPassword"
                 className="text-sm text-[#ff7800] hover:text-[#e66a00]"
               >
                 Esqueci minha senha
@@ -101,7 +101,7 @@ export default function Login() {
 
           <div className="mt-4 text-center text-sm text-slate-600">
             Ainda não tem conta?{' '}
-            <Link to="/register" className="text-[#ff7800] hover:text-[#e66a00]">
+            <Link to="/Register" className="text-[#ff7800] hover:text-[#e66a00]">
               Cadastre-se
             </Link>
           </div>

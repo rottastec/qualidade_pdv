@@ -59,7 +59,7 @@ export default function Register() {
         title: 'Cadastrado com sucesso',
         description: 'Verifique seu e-mail para confirmar sua conta.',
       });
-      navigate('/login');
+      navigate('/Login');
     } catch (error) {
       toast({
         title: 'Erro ao cadastrar',
@@ -136,7 +136,7 @@ export default function Register() {
 
           <div className="mt-4 text-center text-sm text-slate-600">
             Já tem conta?{' '}
-            <Link to="/login" className="text-[#ff7800] hover:text-[#e66a00]">
+            <Link to="/Login" className="text-[#ff7800] hover:text-[#e66a00]">
               Entrar
             </Link>
           </div>
