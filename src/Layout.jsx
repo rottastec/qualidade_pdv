@@ -98,7 +98,7 @@ export default function Layout({ children, currentPageName }) {
             className="text-slate-700"
             onClick={async () => {
               await signOut();
-              navigate('/login');
+              navigate('/Login');
             }}
           >
             <LogOut className="w-4 h-4 mr-2" />
