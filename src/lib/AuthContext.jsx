@@ -52,8 +52,35 @@ export const AuthProvider = ({ children }) => {
           estados: normalizeAllowedStates(data.estados),
         });
       } else {
-        console.warn('[Auth] perfil não encontrado, usando fallback, role =', buildFallbackProfile(fallbackUser).role);
-        setProfile(buildFallbackProfile(fallbackUser));
+        console.warn('[Auth] perfil não encontrado, criando automaticamente para userId:', userId);
+        const fallback = buildFallbackProfile(fallbackUser);
+        try {
+          const { data: created } = await supabase
+            .from('profiles')
+            .upsert({
+              id: userId,
+              email: fallbackUser?.email || '',
+              full_name: fallbackUser?.user_metadata?.full_name || '',
+              role: fallback.role,
+              estados: [],
+            }, { onConflict: 'id' })
+            .select()
+            .single();
+
+          if (created) {
+            console.log('[Auth] perfil criado automaticamente, role =', created.role);
+            setProfile({
+              ...created,
+              role: normalizeRole(created.role),
+              estados: normalizeAllowedStates(created.estados),
+            });
+          } else {
+            setProfile(fallback);
+          }
+        } catch (autoCreateErr) {
+          console.warn('[Auth] auto-create profile falhou:', autoCreateErr?.message);
+          setProfile(fallback);
+        }
       }
     } catch (err) {
       console.error('[Auth] loadProfile uncaught', err);
