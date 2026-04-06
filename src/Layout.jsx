@@ -59,6 +59,16 @@ export default function Layout({ children, currentPageName }) {
               <span className="font-semibold text-slate-800">Qualidade PDV</span>
             </div>
           </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-slate-500 truncate max-w-[120px]">{user?.email || ''}</span>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={async () => { await signOut(); navigate('/Login'); }}
+            >
+              <LogOut className="w-4 h-4 text-slate-600" />
+            </Button>
+          </div>
         </div>
       </header>
 

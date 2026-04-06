@@ -73,6 +73,11 @@ export const canViewRelatorio = ({ role, allowedStates, relatorio, pdvById, pdvB
     return false;
   }
 
+  // estados vazio = sem restrição de estado (vê todos)
+  if (!allowedStates || allowedStates.length === 0) {
+    return true;
+  }
+
   const estado = resolvePdvEstado(relatorio, pdvById, pdvByName);
 
   if (!estado) {
@@ -84,5 +89,7 @@ export const canViewRelatorio = ({ role, allowedStates, relatorio, pdvById, pdvB
 
 export const filterPdvsByAccess = ({ role, allowedStates, pdvs }) => {
   if (canAccessAllStates(role)) return pdvs;
+  // estados vazio = sem restrição de estado (vê todos)
+  if (!allowedStates || allowedStates.length === 0) return pdvs;
   return pdvs.filter((pdv) => allowedStates.includes(String(pdv.estado || '').toUpperCase()));
 };
